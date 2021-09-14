@@ -20,6 +20,10 @@ abstract class MyList[+A] {
   def flatMap[B](transformer: A => MyList[B]): MyList[B]
   def filter(predicate: A => Boolean): MyList[A]
   def foreach(function: A => Unit): Unit
+  def sort(compare: (A, A) => Int): MyList[A]
+  def zipWith[B, C](list: MyList[B], function: (A, B) => C): MyList[C]
+  def fold[B](start: B)(operator: (B, A) => B): B
+
   // concat
   def ++[B >: A](list: MyList[B]): MyList[B]
 }
@@ -34,7 +38,13 @@ case object Empty extends MyList[Nothing] {
   def map[B](transformer: Nothing => B): MyList[B] = Empty
   def filter(predicate: Nothing => Boolean): MyList[Nothing] = Empty
   def flatMap[B](transformer: Nothing => MyList[B]): MyList[B] = Empty
-  def foreach(function: Nothing => Unit): Unit = Empty
+  def foreach(function: Nothing => Unit): Unit = ()
+  def sort(compare: (Nothing, Nothing) => Int): MyList[Nothing] = Empty
+  def zipWith[B, C](list: MyList[B], function: (Nothing, B) => C): MyList[C] = {
+    if (!list.isEmpty) throw new RuntimeException("Lists do not have the same length")
+    else Empty
+  }
+  def fold[B](start: B)(operator: (B, Nothing) => B): B = start
 
   def ++[B >: Nothing](list: MyList[B]): MyList[B] = list
 }
@@ -60,7 +70,25 @@ case class LinkedList[+A](h: A, t: MyList[A]) extends MyList[A] {
   }
   def foreach(function: A => Unit): Unit = {
     function(h)
+    tail.foreach(function)
   }
+  def sort(compare: (A, A) => Int): MyList[A] = {
+    def insert(x: A, sortedList: MyList[A]): MyList[A] = {
+      if (sortedList.isEmpty) LinkedList(x, Empty)
+      else if (compare(x, sortedList.head) <= 0) LinkedList(x, sortedList)
+      else LinkedList(sortedList.head, insert(x, sortedList.tail))
+    }
+    val sortedTail = t.sort(compare)
+    insert(h, sortedTail)
+  }
+  def zipWith[B, C](list: MyList[B], function: (A, B) => C): MyList[C] = {
+    if (list.isEmpty) throw new RuntimeException("Lists do not have the same length")
+    else LinkedList(function(h, list.head), t.zipWith(list.tail, function))
+  }
+  def fold[B](start: B)(operator: (B, A) => B): B = {
+    tail.fold(operator(start, h))(operator)
+  }
+
 
   def ++[B >: A](list: MyList[B]): MyList[B] = LinkedList(h, t ++ list)
 }
@@ -101,4 +129,9 @@ object ListTest extends App {
   println(listOfIntegers.filter(_ % 2 == 0)).toString
   println(listOfIntegers ++ anotherListOfIntegers).toString
   println(listOfIntegers.flatMap((element: Int) => LinkedList(element, LinkedList(element + 1, Empty))))
+  listOfIntegers.foreach(x => println(x))
+
+  println(listOfIntegers.sort((x, y) => y - x))
+  println(anotherListOfIntegers.zipWith[String, String](listOfStrings, _ + "-" + _))
+  println(listOfIntegers.fold(0)(_ + _))
 }
